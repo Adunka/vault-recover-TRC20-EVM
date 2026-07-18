@@ -1,0 +1,48 @@
+name: release
+
+# Push a version tag (e.g. v0.1.0) to build binaries and attach them to a
+# GitHub Release. Each platform is built on its own native runner, so the
+# secp256k1 C dependency compiles with the toolchain it expects and no
+# cross-compilation is involved.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: vault-recover.exe
+            asset: vault-recover-windows-x86_64.exe
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin: vault-recover
+            asset: vault-recover-linux-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bin: vault-recover
+            asset: vault-recover-macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: stage artifact
+        shell: bash
+        run: cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" "${{ matrix.asset }}"
+      - name: attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.asset }}
